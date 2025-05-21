@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:teradata="http://www.mulesoft.org/schema/mule/teradata" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/teradata http://www.mulesoft.org/schema/mule/teradata/current/mule-teradata.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd">
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="bb6e8433-d115-496e-95bd-748d63efc9ed" sendNullValues="true">
+		<salesforce:basic-connection username="muletest@three.ie.lightning" password="testing@123" securityToken="AKnnebjfpDFOkWO0fHF08a2SH" url="https://test.salesforce.com/services/Soap/u/61.0" />
+	</salesforce:sfdc-config>
+	<os:object-store name="LastRunTimeObjectStore" doc:name="Object store" doc:id="201a2f9d-f81e-432a-9754-a09b23832dfd" config-ref="ObjectStore_Config" entryTtlUnit="DAYS" entryTtl="1"/>
+	<os:config name="ObjectStore_Config" doc:name="ObjectStore Config" doc:id="2e1cf7d2-1a6f-4ca8-9d2f-50ee050a75a1" />
+	<configuration-properties doc:name="Configuration properties" doc:id="33abece2-9b86-4d21-9256-c2cc05e10817" file="config\config.yaml" />
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="afa52347-8b1e-4a47-a8f8-4322e3efd911" >
+		<db:generic-connection url="jdbc:teradata://172.24.221.137/DATABASE=T01_RESTRICTED_VIEWS,CHARSET=UTF8,TMODE=TERA,CHARSET=UTF16" user="P_SALESFORCE_USER" password="verilog5" driverClassName="com.teradata.jdbc.TeraDriver"/>
+	</db:config>
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="6c08af75-90c5-4d28-98fc-00b8e6ac82d3" >
+		<email:smtp-connection host="172.16.98.59" >
+			<email:properties >
+				<email:property key="mail.smtp.ssl.enable" value="false" />
+				<email:property key="mail.smtp.ssl.enable" value="false" />
+			</email:properties>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<vm:config name="VM_Config" doc:name="VM Config" doc:id="dc5daed2-5236-479e-9648-81680d39275d">
+		<vm:queues >
+			<vm:queue queueName="addressquupdate" />
+		</vm:queues>
+	</vm:config>
+	<flow name="address_td_jobsFlow" doc:id="59e09f41-9dce-4d78-b294-9110e1e7f258" >
+		<scheduler doc:name="Scheduler" doc:id="43a134e4-0af8-4cb9-bf67-0fcd331d2913" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="8" timeUnit="HOURS"/>
+			</scheduling-strategy>
+		</scheduler>
+		<set-variable value="#[%dw 2.0&#10;var UUID = uuid()&#10;---&#10;UUID]" doc:name="Set Variable TraceId" doc:id="4deea853-ef78-405d-9bad-c03b88b129de" variableName="traceid" />
+		<logger level="INFO" doc:name="Logger" doc:id="127ea878-127e-49d4-a6fc-bb7b4aca0e41" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Flow Started"/>
+		<set-variable value="#[Mule::p('config.loaded_dateAddress')]" doc:name="Set Variable loaded_date" doc:id="23d12b33-83e0-4887-aade-37e4e6c9ad8d" variableName="loaded_date"/>
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;&#10;var pdValue = Mule::p('config.pdvalueAddress')&#10;---&#10;(now() as Date) - (pdValue as Period) as String {format: &quot;yyyy-MM-dd&quot;}]" doc:name="Set dayBefore" doc:id="98506119-bf05-4aea-aa1e-801addc21910" variableName="dayBefore" />
+		<os:retrieve doc:name="Retrieve" doc:id="db08137c-655f-4de1-9adf-2d466413e7eb" key="last_run_datetime" objectStore="LastRunTimeObjectStore" target="last_run_time">
+			<os:default-value><![CDATA[#[vars.daybefore]]]></os:default-value>
+		</os:retrieve>
+		<logger level="INFO" doc:name="Logger last_run_time" doc:id="27995534-d380-402b-a0d0-bde363a13e8f" message=" Trace Id: #[vars.traceId] ||  Address TD Job || last_run_time in : #[vars.last_run_time]" />
+		<choice doc:name="Choice" doc:id="51d5a41b-aa85-4bd0-a7e5-3ccc1ae7802b" >
+			<when expression="#[Mule::p('config.defaultDateAddress') == &quot;true&quot; and Mule::p('config.loaded_dateAddress') != null]">
+				<set-variable doc:name="Set Variable finalquery" doc:id="855ceeab-b21d-4569-a1a7-e1be07040fca" variableName="finalquery" value="#[%dw 2.0&#10;&#10;output application/json&#10;&#10;var tdQuery = Mule::p('config.teradataQueryAddress')&#10;&#10;---&#10;&#10;tdQuery replace ':rundate' with vars.loaded_date as String]"/>
+				<logger level="INFO" doc:name="Final TD Query" doc:id="35286cc5-eabc-4f38-be9d-3c806686f9f6" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Loaded Date :-  #[vars.loaded_date]  and query is : #[vars.finalquery]" />
+			</when>
+			<otherwise>
+				<set-variable value="#[%dw 2.0&#10;output application/json&#10;&#10;var tdQuery = Mule::p('config.teradataQueryAddress')&#10;&#10;---&#10;tdQuery replace ':rundate' with vars.last_run_time as String]" doc:name="Set Variable finalquery" doc:id="690a7481-d053-443b-bdab-6d0bcf00e5d7" variableName="finalquery"/>
+				<logger level="INFO" doc:name="Final TD Query" doc:id="af980b66-4597-4119-9a2b-1fe0dfa1b14a" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Last run time :-  #[vars.last_run_time]  and query is : #[vars.finalquery]"/>
+			</otherwise>
+		</choice>
+		<try doc:name="Try" doc:id="6e4e66e5-452c-40b7-b052-b0d4546aa1e8" >
+			<db:select doc:name="Query TD" doc:id="7ceb7ad1-d5a2-4cf8-8e08-b881bddb41ec" config-ref="Database_Config" target="dataFromTD">
+				<reconnect frequency="5000" count="3" />
+					<db:sql><![CDATA[#[vars.finalquery]]]></db:sql>
+			</db:select>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="86adb009-925e-4eb2-a800-c2b0994d77a8" type="ANY">
+					<logger level="ERROR" doc:name="Logger" doc:id="f7b450b2-cfab-42dc-a12a-7948a4e2beb9" message="Trace Id: #[vars.traceId] ||  Address TD Job || Error WHILE FETCHING RECORD FROM TeraData Object: Error Description: #[error.description], Error Type: #[error.errorType], Error Message: #[error.errorMessage]"/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<logger level="INFO" doc:name="Logger before unique" doc:id="d00cc99d-65f1-404e-bf71-35e1b34dc6f9" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  size of dataFromTD is before unique #[sizeOf(vars.dataFromTD)]"/>
+		<ee:transform doc:name="Filter" doc:id="6bf3e212-c556-455d-ab2c-134c914775df" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="dataFromTD" ><![CDATA[%dw 2.0
+output application/json
+
+---
+vars.dataFromTD
+  // Filter out records where CO_CORPORATE_ID is null
+  filter ((item) -> item.CO_CORPORATE_ID != null)
+  // Remove duplicates based on CO_CORPORATE_ID, ADDRESS_TYPE, and CU_CUSTOMER_ID
+  distinctBy ((item) -> 
+    (item.CO_CORPORATE_ID default "") ++ 
+    (item.ADDRESS_TYPE default "") ++ 
+    (item.CU_CUSTOMER_ID default "")
+  )
+]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger dataFromTD after unique" doc:id="d2f3a6ce-29ce-4f9d-8dba-19b0e8f272b1" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  size of dataFromTD after unique is #[sizeOf(vars.dataFromTD)]" />
+		<try doc:name="Try" doc:id="08b08724-daba-4f19-b2a5-17ac6feccee0" >
+			<salesforce:query doc:name="Query From SFDC" doc:id="6343583f-b4d4-4b18-a71c-0d6d68e78d74" config-ref="Salesforce_Config" target="dataFromSFDC">
+			<reconnect frequency="5000" count="3" />
+				<salesforce:salesforce-query><![CDATA[#[Mule::p('config.queryFromBancAddress')]]]></salesforce:salesforce-query>
+		</salesforce:query>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="5c3136a6-63c2-4967-914a-1cb14be5c617" type="ANY">
+					<logger level="ERROR" doc:name="Logger" doc:id="575c46aa-4420-44ff-9a61-26a65154c36f" message="Trace Id: #[vars.traceId] ||  Address TD Job || Error WHILE FETCHING RECORD FROM SFDC Object: Error Description: #[error.description], Error Type: #[error.errorType], Error Message: #[error.errorMessage]"/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<logger level="INFO" doc:name="Logger dataFromSFDC" doc:id="dcc91365-065e-4a93-ae30-6adc2fe8a783" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  size of dataFromSFDC is #[sizeOf(vars.dataFromSFDC)]"/>
+		<ee:transform doc:name="Transform Inner Join" doc:id="7c03cafd-888d-445e-9bc6-f160259b9f41" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+ 
+var sfdcLookup = vars.dataFromSFDC groupBy $.BAN__c
+
+---
+// Perform the map operation with optimized lookup
+vars.dataFromTD map ((td) -> do {
+  // Perform fast lookup in the preprocessed sfdcLookup map
+  var matchedSF = if(td.CU_CUSTOMER_ID !=null and trim (td.CU_CUSTOMER_ID) != '')sfdcLookup[trim(td.CU_CUSTOMER_ID as String default "")] else null
+ 
+  // Return merged data if a match is found, otherwise return null
+  ---
+  if (matchedSF != null)
+    td ++ {
+      Id: matchedSF[0].Id
+    }
+  else
+    null
+}) filter (record) -> record != null]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Payload after Join " doc:id="edf59161-bead-4f14-9962-87ea05b1ba44" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Payload After Join #[sizeOf(payload)]"/>
+		<remove-variable doc:name="Remove Variable dataFromTD" doc:id="75ef31ee-1182-4c8b-96c0-e3d8b97dd53c" variableName="dataFromTD" />
+		<remove-variable doc:name="Remove Variable dataFromSFDC" doc:id="f7e5e78f-5fe4-4e4d-99c0-4f54bc358b0c" variableName="dataFromSFDC" />
+		<remove-variable doc:name="Remove Variable dayBefore" doc:id="cf283022-e07d-494d-a61f-554e8b63891d" variableName="dayBefore"/>
+		<remove-variable doc:name="Remove Variable loaded_date" doc:id="13d79804-ac9f-4db3-8487-3a32d2dab973" variableName="loaded_date"/>
+		<remove-variable doc:name="Remove Variable finalquery" doc:id="cbd4c523-a403-4a4b-9db1-03c7e33f38c5" variableName="finalquery"/>
+		<ee:transform doc:name="Transform Mapping" doc:id="10934a09-86d7-42cc-a09c-fe9b5d323016" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+
+fun fixEncoding(value) =
+  if (value != null) do {
+    // Assuming value is misinterpreted as UTF-8 and was originally ISO-8859-1
+    value as Binary { encoding: "ISO-8859-1" } as String { encoding: "UTF-8" }
+  } else null
+
+
+--- 
+payload filter ((record) -> record.Id != null) 
+  // Remove duplicate records based on Id
+  distinctBy ((record) -> record.Id)
+  map ((record) -> 
+  {
+    Id: record.Id,
+    Billing_Address_Line_1__c: 
+      (if (record.AD_HOUSE_NAME != null and trim(record.AD_HOUSE_NAME) != "") fixEncoding(record.AD_HOUSE_NAME) ++ ", " else "") ++ 
+      (if (record.AD_ADR_HOUSE_NO != null and trim(record.AD_ADR_HOUSE_NO) != "")  trim(record.AD_ADR_HOUSE_NO) ++ ", " else "") ++ 
+      (if (record.AD_ADDRESS_PRIMARY_LN != null and trim(record.AD_ADDRESS_PRIMARY_LN != ""))   fixEncoding(record.AD_ADDRESS_PRIMARY_LN)  else ""),
+    Billing_Address_Line_2__c: 
+      (if (record.AD_SECONDARY_LN != null) fixEncoding(record.AD_SECONDARY_LN) else ""),
+    Billing_Address_City__c: 
+      (if (record.AD_ADR_CITY != null) fixEncoding(record.AD_ADR_CITY) else ""),
+    Billling_Address_County__c: 
+      (if (record.AD_ADR_COUNTY_NAME != null) fixEncoding(record.AD_ADR_COUNTY_NAME) else "")
+  })]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="Adding null field" doc:id="bff96d69-ddbb-42fd-ab3c-40dc5961a37d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+ 
+---
+ 
+payload map (record) -> {
+	(record),
+	fieldsToNull:  valuesOf((record mapObject ((value, key, index) ->     ("k":(key)) if (value == "" or value == null) )))
+	
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger after mapping" doc:id="2939e991-4ab5-43cc-9ea1-1f09b4409817" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Payload after mapping :  #[sizeOf(payload)]" />
+		<batch:job jobName="address_td_jobsBatch_Job" doc:id="88085cbd-cfc2-47fb-9271-dc38af6865cd" blockSize="${config.batchSizeAddress}" maxFailedRecords="-1">
+			<batch:process-records >
+				<batch:step name="Batch_Step_update" doc:id="f0749dd2-7cb0-41dd-b946-ed5ce432c0eb" acceptPolicy="ALL">
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="9b1b1a22-067e-485a-aea3-a3e4b510ba52" size="${config.batchSizeAddress}">
+						<logger level="DEBUG" doc:name="Logger" doc:id="fea4aea3-1e8e-4bc0-8cfa-c97baa635683" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Successfull records : #[payload]"/>
+						<try doc:name="Try" doc:id="c339e78f-eeba-481d-bbae-4da081b73494">
+				<salesforce:update doc:name="Update" doc:id="a2a60513-5a76-4ae0-9cd4-778b9057a91b" config-ref="Salesforce_Config" type="Ban__c" >
+								<reconnect frequency="5000" count="3" />
+							</salesforce:update>
+							<error-handler>
+								<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="7501887b-f044-4512-b2ec-b26620fefbd9" type="ANY">
+									<logger level="ERROR" doc:name="Logger" doc:id="420374cf-35fc-4a30-89e5-afc102359e1f" message="Trace Id: #[vars.traceId] ||  Address TD Job || Error WHILE UPDATING RECORD FROM SFDC Object: Error Description: #[error.description], Error Type: #[error.errorType], Error Message: #[error.errorMessage]" />
+								</on-error-continue>
+							</error-handler>
+						</try>
+					</batch:aggregator>
+				</batch:step>
+				<batch:step name="Batch__Update_Retry" doc:id="8c8ab0cc-630d-4d4b-8aaa-0e796d2bb3d8" acceptPolicy="ONLY_FAILURES">
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="9aa88354-9882-4435-962b-da1a1aad3c8d" size="${config.batchSizeAddress}">
+						<ee:transform doc:name="Transform Message" doc:id="d35e2711-26bc-4467-a52a-585e017320f6" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::Runtime
+output application/java
+---
+wait(payload,60000)]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="Logger" doc:id="1a67aab0-036c-4b35-8c6a-05b709c7e18b" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Total number of records during retry update: : #[sizeOf(payload)]"/>
+						<salesforce:update doc:name="Update" doc:id="16faca3f-bbe8-4eee-8b96-de86dc868778" config-ref="Salesforce_Config" type="Ban__c"/>
+					</batch:aggregator>
+				</batch:step>
+				<batch:step name="Batch_Step_failure" doc:id="afe464db-3997-439f-bd4f-3ec42208f9f6" acceptPolicy="ONLY_FAILURES">
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="d2e4a596-6d31-464e-a346-13fe5f984dde" size="${config.batchSizeAddress}">
+						<logger level="INFO" doc:name="Logger" doc:id="0f1753ed-7d5b-41ac-a712-8c8e3cfe1738" message="Trace Id: #[vars.traceId] ||  Address TD Job || Failed records while updating : #[payload]"/>
+					</batch:aggregator>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<logger level="INFO" doc:name="Logger" doc:id="e6f862a5-fccd-4518-9770-c3c673169d63" message="Trace Id: #[vars.traceId] ||  Address TD Jobs || Batch Completed for Updation  "/>
+				<vm:publish queueName="addressquupdate" doc:name="Publish For Update" doc:id="082acaf6-037f-4ef3-a3fb-c0a2527de3da" config-ref="VM_Config" timeoutUnit="HOURS"/>
+			</batch:on-complete>
+		</batch:job>
+		<vm:consume doc:name="Consume for update" doc:id="a9545a71-cf6e-46c1-8c4f-2cf15a315ba4" config-ref="VM_Config" queueName="addressquupdate" timeoutUnit="HOURS"/>
+		<ee:transform doc:name="Job Last Run Time" doc:id="c0f2f69f-0b2f-4a08-95d3-c9405bdfb0d3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+(now() as Date) as String {format: "yyyy-MM-dd"}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="dd610aac-ce28-4bc4-a793-ad8d96d6830d" message="Trace Id: #[vars.traceId] ||  Address TD Job || Job Last Run Time: #[payload]"/>
+		<os:store doc:name="Store" doc:id="7e403c03-046c-4483-ab85-84cd8df9e4b9" key="last_run_datetime" objectStore="LastRunTimeObjectStore"/>
+		<logger level="INFO" doc:name="Logger" doc:id="00546fcb-0335-4077-a5a0-8501c9daf5e4" message="Trace Id: #[vars.traceId] ||  Address TD Job ||  Address Td Flow Completed "/>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="ab0184f8-2828-4e63-927e-a84144dc9c88" type="ANY">
+				<logger level="ERROR" doc:name="Logger" doc:id="f82d6c19-5c9c-4cdc-a480-ce894c3a8bb6" message="Trace Id: #[vars.traceId] ||  Address TD Job || #ERROR WHILE in Address TD Jobs : Error Description: #[error.description], Error Type: #[error.errorType], Error Message: #[error.errorMessage]"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>
