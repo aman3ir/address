@@ -1,11 +1,3 @@
-name: Build and Deploy to CloudHub
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,13 +5,16 @@ jobs:
     - name: Checkout this repo
       uses: actions/checkout@v3
 
-    # Step to ensure terajdbc jar is copied before building
+    # Ensure terajdbc jar is in the correct location for the build
     - name: Setup terajdbc jar for build
       run: |
-        # Ensure the libs directory exists on the runner
-        mkdir -p libs
-        # Copy the terajdbc jar from the repository's libs folder to the runner
-        cp ./libs/terajdbc-20.00.00.06.jar ./libs/terajdbc-20.00.00.06.jar
+        # Check if the terajdbc jar exists in the expected location, and copy if necessary
+        if [ ! -f ./libs/terajdbc-20.00.00.06.jar ]; then
+          echo "terajdbc jar is missing in ./libs/ directory"
+          exit 1
+        fi
+        # No need to copy if it's already in the right place
+        echo "terajdbc jar is found and ready for build"
 
     - name: Cache dependencies
       uses: actions/cache@v3
@@ -58,13 +53,16 @@ jobs:
     - name: Checkout this repo
       uses: actions/checkout@v3
 
-    # Step to ensure terajdbc jar is copied before deployment
+    # Ensure terajdbc jar is available for the deploy step
     - name: Setup terajdbc jar for deploy
       run: |
-        # Ensure the libs directory exists on the runner
-        mkdir -p libs
-        # Copy the terajdbc jar from the repository's libs folder to the runner
-        cp ./libs/terajdbc-20.00.00.06.jar ./libs/terajdbc-20.00.00.06.jar
+        # Check if the terajdbc jar exists in the expected location, and copy if necessary
+        if [ ! -f ./libs/terajdbc-20.00.00.06.jar ]; then
+          echo "terajdbc jar is missing in ./libs/ directory"
+          exit 1
+        fi
+        # No need to copy if it's already in the right place
+        echo "terajdbc jar is found and ready for deploy"
 
     - name: Cache dependencies
       uses: actions/cache@v3
