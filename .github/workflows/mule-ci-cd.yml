@@ -13,6 +13,14 @@ jobs:
     - name: Checkout this repo
       uses: actions/checkout@v3
 
+    # Step to ensure terajdbc jar is copied before building
+    - name: Setup terajdbc jar for build
+      run: |
+        # Ensure the libs directory exists on the runner
+        mkdir -p libs
+        # Copy the terajdbc jar from the repository's libs folder to the runner
+        cp ./libs/terajdbc-20.00.00.06.jar ./libs/terajdbc-20.00.00.06.jar
+
     - name: Cache dependencies
       uses: actions/cache@v3
       with:
@@ -49,6 +57,14 @@ jobs:
     steps:
     - name: Checkout this repo
       uses: actions/checkout@v3
+
+    # Step to ensure terajdbc jar is copied before deployment
+    - name: Setup terajdbc jar for deploy
+      run: |
+        # Ensure the libs directory exists on the runner
+        mkdir -p libs
+        # Copy the terajdbc jar from the repository's libs folder to the runner
+        cp ./libs/terajdbc-20.00.00.06.jar ./libs/terajdbc-20.00.00.06.jar
 
     - name: Cache dependencies
       uses: actions/cache@v3
